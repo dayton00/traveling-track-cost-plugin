@@ -5,11 +5,11 @@ Description: A simple plugin to add a custom form and display data in a table wi
 Version: 1.0
 */
 
-// Enqueue jQuery and Google Maps API
+// Enqueue jQuery and custom script
 function custom_form_enqueue_scripts() {
     wp_enqueue_script('jquery');
-    wp_enqueue_script('google-maps', 'https://maps.googleapis.com/maps/api/js?key=AIzaSyC0PZPQf-_NlXwYCfITL1fXJN7Qr9_9suY&libraries=places', array(), null, true);
-    wp_enqueue_script('custom-script', plugin_dir_url(__FILE__) . 'custom.js', array('jquery', 'google-maps'), null, true);
+    wp_enqueue_script('custom-script', plugin_dir_url(__FILE__) . 'custom-script.js', array('jquery'), '1.0', true);
+    wp_localize_script('custom-script', 'ajax_object', array('ajax_url' => admin_url('admin-ajax.php')));
 }
 add_action('wp_enqueue_scripts', 'custom_form_enqueue_scripts');
 
@@ -58,18 +58,18 @@ function custom_form_process_form() {
         $price = floatval($_POST['price']);
 
         $table_name = $wpdb->prefix . 'custom_form_data';
-        $wpdb->insert($table_name, array(
+        $result = $wpdb->insert($table_name, array(
             'email' => $email,
             'from_location' => $from,
             'to_location' => $to,
             'price' => $price
         ));
-    }
-    // Handle delete request
-    if (isset($_POST['delete'])) {
-        $id = intval($_POST['delete']);
-        $table_name = $wpdb->prefix . 'custom_form_data';
-        $wpdb->delete($table_name, array('id' => $id));
+
+        if ($result) {
+            echo '<script>alert("Record added successfully!"); window.location.href = "' . get_permalink() . '";</script>';
+        } else {
+            echo '<script>alert("Failed to add record. Please try again.");</script>';
+        }
     }
 }
 
@@ -116,31 +116,31 @@ function custom_form_display_form() {
         }
     </style>
     <div class="custom-form-container">
-    <form method="post" action="">
-        <div class="form-group1">
-            <label for="email">Email:</label>
-            <input type="email" name="email" id="email" required>
-        </div>
+        <form id="custom-form" method="post" action="">
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" name="email" id="email" required>
+            </div>
 
-        <div class="form-group2">
-            <label for="from">From:</label>
-            <input type="text" name="from" id="from" autocomplete="from" required>
-        </div>
+            <div class="form-group">
+                <label for="from">From:</label>
+                <input type="text" name="from" id="fromx" required>
+            </div>
 
-        <div class="form-group3">
-            <label for="to">To:</label>
-            <input type="text" name="to" id="to" autocomplete="to" required>
-        </div>
+            <div class="form-group">
+                <label for="to">To:</label>
+                <input type="text" name="to" id="tox" required>
+            </div>
 
-        <div class="form-group4">
-            <label for="price">Price:</label>
-            <input type="number" name="price" id="price" step="0.01" min="0" required>
-        </div>
+            <div class="form-group">
+                <label for="price">Price:</label>
+                <input type="number" name="price" id="price" step="0.01" min="0" required>
+            </div>
 
-        <input type="submit" name="submit" value="Submit">
-    </form>
+            <input type="submit" name="submit" value="Submit">
+        </form>
     </div>
-<?php
+    <?php
 }
 
 // Display data in a table filtered by email
@@ -158,10 +158,7 @@ function custom_form_display_data_by_email($email) {
             echo '<td>' . $row['to_location'] . '</td>';
             echo '<td>' . $row['price'] . '</td>';
             echo '<td>';
-            echo '<form method="post">';
-            echo '<input type="hidden" name="delete" value="' . $row['id'] . '">';
-            echo '<button type="submit" name="submit_delete">Delete</button>';
-            echo '</form>';
+            echo '<button class="delete-btn" data-id="' . $row['id'] . '">Delete</button>';
             echo '</td>';
             echo '</tr>';
         }
@@ -176,12 +173,25 @@ function custom_form_show_activity_button() {
     ?>
     <div class="custom-form-container">
         <form method="post" action="">
-            <label for="email">Enter Email to Show Activity:</label>
-            <input type="email" name="email" id="email" required>
-            <input type="submit" name="show_activity" value="Show My Activity">
+            <label for="email_filter">Enter Email to Show Activity:</label>
+            <input type="email" name="email" required>
+            <input type="submit" name="show_activity" value="My Activity">
         </form>
     </div>
-<?php
+    <?php
+}
+
+// AJAX handler for deleting rows
+add_action('wp_ajax_custom_delete_row', 'custom_delete_row');
+function custom_delete_row() {
+    if (isset($_POST['row_id'])) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'custom_form_data';
+        $id = intval($_POST['row_id']);
+        $wpdb->delete($table_name, array('id' => $id));
+        echo 'success';
+    }
+    wp_die();
 }
 
 // Add menu item to the WordPress dashboard settings menu
@@ -240,5 +250,5 @@ function custom_form_settings_page() {
             <p>No data found.</p>
         <?php endif; ?>
     </div>
-<?php
+    <?php
 }
